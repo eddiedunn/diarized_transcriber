@@ -1,0 +1,9 @@
+.env
+*.db
+.python-version
+__pycache__
+.DS_Store
+feeds.yaml
+core
+dist/
+build/
