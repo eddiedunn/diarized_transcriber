@@ -4,9 +4,6 @@ diarized_transcriber - A library for transcribing media content with speaker dia
 
 import logging
 from importlib.metadata import version, PackageNotFoundError
-from dotenv import load_dotenv
-
-load_dotenv()
 
 try:
     __version__ = version(__name__)
@@ -31,3 +28,20 @@ from .exceptions import (
     TranscriptionError,
     DiarizationError
 )
+# Add this import
+from .transcription.engine import TranscriptionEngine
+
+# Define public API
+__all__ = [
+    'TranscriptionEngine',
+    'MediaContent',
+    'MediaSource',
+    'TranscriptionResult',
+    'TranscriptionSegment',
+    'Speaker',
+    'DiarizedTranscriberError',
+    'GPUConfigError',
+    'AudioProcessingError',
+    'TranscriptionError',
+    'DiarizationError',
+]
