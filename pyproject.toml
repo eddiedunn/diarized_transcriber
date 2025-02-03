@@ -33,7 +33,7 @@ dependencies = [
     "pyannote.audio",
     "soundfile",
 ]
-requires-python = "==3.10"
+requires-python = ">=3.10.0"
 
 [project.optional-dependencies]
 dev = [
