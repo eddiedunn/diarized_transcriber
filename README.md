@@ -24,6 +24,15 @@ pip install diarized-transcriber
 - PyTorch with CUDA support
 - HuggingFace account for `pyannote.audio` access
 
+Before running the examples below you must export an authentication token for
+the diarization pipeline. This token is referenced in
+`diarized_transcriber/transcription/diarization.py` (see lines 43–55) and is
+required for downloading the pretrained `pyannote.audio` model.
+
+```bash
+export HF_TOKEN="<your-huggingface-token>"
+```
+
 ## Quick Start
 
 ```python

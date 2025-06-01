@@ -46,12 +46,27 @@ def load_audio(
             logger.debug(
                 "Resampling audio from %dHz to %dHz",
                 file_sample_rate,
-                sample_rate
+                sample_rate,
             )
-            # TODO: Implement resampling logic
-            # We can use torchaudio.transforms.Resample here
-            pass
-            
+
+            import torch
+            import torchaudio
+
+            waveform = torch.from_numpy(audio_data).float()
+            if waveform.ndim == 1:
+                waveform = waveform.unsqueeze(0)
+
+            resampler = torchaudio.transforms.Resample(
+                orig_freq=file_sample_rate,
+                new_freq=sample_rate,
+            )
+            waveform = resampler(waveform)
+
+            if waveform.shape[0] == 1:
+                audio_data = waveform.squeeze(0).numpy()
+            else:
+                audio_data = waveform.transpose(0, 1).numpy()
+
         return audio_data, sample_rate
             
     except Exception as e:
