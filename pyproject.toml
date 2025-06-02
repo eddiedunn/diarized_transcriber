@@ -44,6 +44,10 @@ dev = [
     "mypy",
     "ruff",
 ]
+server = [
+    "fastapi",
+    "uvicorn"
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/diarized_transcriber"]

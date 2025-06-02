@@ -118,6 +118,20 @@ transcript_dict = format_transcript(
 )
 ```
 
+## Running the FastAPI server
+
+Install the optional dependencies:
+
+```bash
+pip install diarized-transcriber[server]
+```
+
+Start the service:
+
+```bash
+python -m diarized_transcriber.api.server
+```
+
 ## Error Handling
 
 The library provides specific exceptions for different error cases:
