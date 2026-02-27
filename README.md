@@ -1,15 +1,30 @@
 # Diarized Transcriber
 
-A Python library for transcribing media content with speaker diarization support. This package provides high-quality transcription using WhisperX with automatic speaker detection and labeling.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/diarized-transcriber.svg)](https://pypi.org/project/diarized-transcriber/)
 
-## Features
+A Python library for transcribing audio and video with automatic speaker diarization. Uses [WhisperX](https://github.com/m-bain/whisperX) for high-quality speech-to-text and [pyannote.audio](https://github.com/pyannote/pyannote-audio) for speaker detection, labeling, and fingerprinting.
 
-- High-quality transcription using WhisperX
-- Automatic speaker diarization
-- Support for multiple media sources
-- GPU acceleration support
-- Flexible output formats
-- Type-safe interfaces
+## Key Features
+
+- **Speech-to-text transcription** using WhisperX (faster-whisper / CTranslate2)
+- **Speaker diarization** — automatically detect and label who said what
+- **Speaker fingerprinting** — enroll speakers and recognize them across recordings using voice embeddings
+- **Cross-recording speaker identification** — match speakers between different audio files
+- **REST API** — built-in FastAPI server for transcription and speaker management
+- **GPU accelerated** — PyTorch + CUDA for fast inference
+- **Multiple output formats** — text and dictionary/JSON
+- **Configurable model sizes** — tiny, base, small, medium, large
+
+## How It Works
+
+1. Audio is loaded and preprocessed
+2. WhisperX transcribes speech to text with word-level timestamps
+3. pyannote.audio detects speaker turns (diarization)
+4. Speaker embeddings are extracted using WeSpeaker ResNet34-LM (256-dim)
+5. Embeddings are matched against enrolled speaker profiles in LanceDB for identification
+6. Results are returned with speaker labels, timestamps, and optional speaker names
 
 ## Installation
 
@@ -17,17 +32,25 @@ A Python library for transcribing media content with speaker diarization support
 pip install diarized-transcriber
 ```
 
+With optional extras:
+
+```bash
+# FastAPI server
+pip install diarized-transcriber[server]
+
+# Speaker profiles (fingerprinting + cross-recording ID)
+pip install diarized-transcriber[profiles]
+
+# Everything
+pip install diarized-transcriber[server,profiles]
+```
+
 ## Requirements
 
-- Python 3.10 or later
+- Python 3.10+
 - CUDA-capable GPU
 - PyTorch with CUDA support
-- HuggingFace account for `pyannote.audio` access
-
-Before running the examples below you must export an authentication token for
-the diarization pipeline. This token is referenced in
-`diarized_transcriber/transcription/diarization.py` (see lines 43–55) and is
-required for downloading the pretrained `pyannote.audio` model.
+- HuggingFace token for pyannote.audio model access
 
 ```bash
 export HF_TOKEN="<your-huggingface-token>"
@@ -38,10 +61,8 @@ export HF_TOKEN="<your-huggingface-token>"
 ```python
 from diarized_transcriber import TranscriptionEngine, MediaContent, MediaSource
 
-# Initialize the engine
 engine = TranscriptionEngine(model_size="base")
 
-# Create media content object
 content = MediaContent(
     id="example-1",
     title="Example Media",
@@ -49,41 +70,23 @@ content = MediaContent(
     source=MediaSource(type="podcast")
 )
 
-# Perform transcription
 result = engine.transcribe(content)
 
-# Format the result
 from diarized_transcriber.utils.formatting import format_transcript
-transcript = format_transcript(
-    result,
-    output_format="text",
-    group_by_speaker=True
-)
-
-print(transcript)
+print(format_transcript(result, output_format="text", group_by_speaker=True))
 ```
-
-## Environment Setup
-
-Set up your HuggingFace token for `pyannote.audio` access:
-
-```bash
-export HF_TOKEN='your-huggingface-token'
-```
-
-Ensure CUDA is properly configured for your system. A good way to check if CUDA is working is to run `nvidia-smi` in your terminal.
 
 ## Configuration
 
-The `TranscriptionEngine` can be configured with different model sizes:
+The `TranscriptionEngine` accepts different Whisper model sizes:
 
-- `tiny`: Fastest, lowest accuracy
-- `base`: Good balance of speed and accuracy
-- `small`: Better accuracy, slower than base
-- `medium`: High accuracy, slower
-- `large`: Highest accuracy, slowest
-
-Example configuration:
+| Model    | Speed   | Accuracy |
+|----------|---------|----------|
+| `tiny`   | Fastest | Lowest   |
+| `base`   | Fast    | Good     |
+| `small`  | Medium  | Better   |
+| `medium` | Slow    | High     |
+| `large`  | Slowest | Highest  |
 
 ```python
 engine = TranscriptionEngine(
@@ -92,11 +95,30 @@ engine = TranscriptionEngine(
 )
 ```
 
+## FastAPI Server
+
+```bash
+pip install diarized-transcriber[server]
+python -m diarized_transcriber.api.server
+```
+
+The server runs on port 8000 and provides endpoints for transcription and speaker management (`/speakers/*`).
+
+## Speaker Management API
+
+When installed with the `profiles` extra, the API exposes endpoints for managing speaker profiles:
+
+- `POST /speakers/enroll` — Enroll a new speaker from audio
+- `GET /speakers/` — List all enrolled speakers
+- `GET /speakers/{id}` — Get speaker profile details
+- `PUT /speakers/{id}` — Update a speaker profile
+- `DELETE /speakers/{id}` — Remove a speaker profile
+- `POST /speakers/identify` — Identify a speaker from audio
+- `POST /speakers/merge` — Merge two speaker profiles
+
 ## Output Formats
 
-The library supports multiple output formats.
-
-### Text Format
+### Text
 
 ```python
 transcript = format_transcript(
@@ -108,7 +130,7 @@ transcript = format_transcript(
 )
 ```
 
-### Dictionary Format
+### Dictionary
 
 ```python
 transcript_dict = format_transcript(
@@ -118,34 +140,20 @@ transcript_dict = format_transcript(
 )
 ```
 
-## Running the FastAPI server
-
-Install the optional dependencies:
-
-```bash
-pip install diarized-transcriber[server]
-```
-
-Start the service:
-
-```bash
-python -m diarized_transcriber.api.server
-```
-
 ## Error Handling
 
-The library provides specific exceptions for different error cases:
+The library provides specific exceptions:
 
-- `GPUConfigError`: GPU-related issues
-- `ModelLoadError`: Model loading failures
-- `AudioProcessingError`: Audio processing problems
-- `TranscriptionError`: General transcription failures
-- `DiarizationError`: Speaker diarization issues
+- `GPUConfigError` — GPU/CUDA configuration issues
+- `ModelLoadError` — Model loading failures
+- `AudioProcessingError` — Audio processing problems
+- `TranscriptionError` — General transcription failures
+- `DiarizationError` — Speaker diarization issues
 
 ## Contributing
 
-Contributions are welcome! Please see our contributing guidelines for more details.
+Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
 
-MIT License - see `LICENSE` file for details.
+MIT License — see [LICENSE](LICENSE) for details.
