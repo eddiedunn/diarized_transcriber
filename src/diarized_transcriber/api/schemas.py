@@ -13,7 +13,7 @@ class TranscriptionRequest(BaseModel):
     title: str = Field(description="Title of the content")
     media_url: HttpUrl = Field(description="URL to the media file")
     model_size: Optional[
-        Literal["tiny", "base", "small", "medium", "large"]
+        Literal["tiny", "base", "small", "medium", "large", "large-v2", "large-v3", "large-v3-turbo"]
     ] = Field(
         default=None,
         description="WhisperX model size to use"

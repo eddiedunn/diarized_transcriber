@@ -24,7 +24,7 @@ def transcribe(req: TranscriptionRequest) -> TranscriptionResponse:
 
     try:
         engine = TranscriptionEngine(
-            model_size=req.model_size or "base"
+            model_size=req.model_size or "large-v3-turbo"
         )
 
         content = MediaContent(

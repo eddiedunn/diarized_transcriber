@@ -23,3 +23,7 @@ class TranscriptionError(DiarizedTranscriberError):
 class DiarizationError(DiarizedTranscriberError):
     """Raised when there are issues during speaker diarization."""
     pass
+
+class EmbeddingExtractionError(DiarizedTranscriberError):
+    """Raised when there are issues extracting speaker embeddings."""
+    pass

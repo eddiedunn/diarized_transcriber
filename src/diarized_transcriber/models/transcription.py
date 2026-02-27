@@ -1,6 +1,8 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import timedelta
+
+EMBEDDING_DIM = 256
 
 class TimeSegment(BaseModel):
     """Represents a time segment in the transcription"""
@@ -29,10 +31,26 @@ class Speaker(BaseModel):
     segments: List[TimeSegment] = Field(
         description="Time segments where this speaker is active"
     )
+    embedding: Optional[List[float]] = Field(
+        default=None,
+        description="Speaker embedding vector (256-dim)"
+    )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="Speaker-specific metadata"
     )
+
+    @field_validator("embedding")
+    @classmethod
+    def validate_embedding(cls, v: Optional[List[float]]) -> Optional[List[float]]:
+        if v is not None:
+            if len(v) != EMBEDDING_DIM:
+                raise ValueError(
+                    f"Embedding must be {EMBEDDING_DIM}-dimensional, got {len(v)}"
+                )
+            if not all(isinstance(x, (int, float)) for x in v):
+                raise ValueError("Embedding values must be numeric (int or float)")
+        return v
 
 class TranscriptionResult(BaseModel):
     """Complete transcription result for a piece of media content"""

@@ -17,7 +17,7 @@ class DiarizationPipeline:
     def __init__(
         self,
         device: str = "cuda",
-        model: str = "pyannote/speaker-diarization@2.1"
+        model: str = "pyannote/speaker-diarization-3.1"
     ):
         """
         Initialize the diarization pipeline.
@@ -51,7 +51,7 @@ class DiarizationPipeline:
                 
                 self._pipeline = Pipeline.from_pretrained(
                     self.model,
-                    use_auth_token=auth_token
+                    token=auth_token
                 )
                 self._pipeline = self._pipeline.to(torch.device(self.device))
                 

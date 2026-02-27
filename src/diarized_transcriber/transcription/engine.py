@@ -19,6 +19,7 @@ from ..models.transcription import (
 from .gpu import verify_gpu_requirements, cleanup_gpu_memory
 from .audio import process_media_content, create_temp_audio_file
 from .diarization import DiarizationPipeline
+from .embeddings import SpeakerEmbeddingExtractor
 from ..types import AudioArray
 
 logger = logging.getLogger(__name__)
@@ -28,29 +29,33 @@ class TranscriptionEngine:
     
     def __init__(
         self,
-        model_size: Literal["tiny", "base", "small", "medium", "large"] = "base",
+        model_size: Literal["tiny", "base", "small", "medium", "large", "large-v2", "large-v3", "large-v3-turbo"] = "large-v3-turbo",
         device: Optional[str] = None,
-        compute_type: Literal["float16", "float32"] = "float16"
+        compute_type: Literal["float16", "float32"] = "float16",
+        extract_embeddings: bool = True
     ):
         """
         Initialize the transcription engine.
-        
+
         Args:
             model_size: WhisperX model size to use
             device: Computing device (defaults to CUDA if available)
             compute_type: Model computation type
-            
+            extract_embeddings: Whether to extract speaker embeddings
+
         Raises:
             GPUConfigError: If GPU verification fails
         """
         self.model_size = model_size
         self.compute_type = compute_type
+        self.extract_embeddings = extract_embeddings
         self.device = device or verify_gpu_requirements()
-        
+
         # Initialize components as needed
         self._whisper_model = None
         self._align_model = None
         self._diarization = None
+        self._embedding_extractor = None
         
     def _initialize_whisper(self) -> None:
         """
@@ -155,7 +160,18 @@ class TranscriptionEngine:
                     speakers,
                     segments_df
                 )
-                
+
+                # Extract speaker embeddings
+                if self.extract_embeddings:
+                    logger.info("Extracting speaker embeddings")
+                    if self._embedding_extractor is None:
+                        self._embedding_extractor = SpeakerEmbeddingExtractor(
+                            device=self.device
+                        )
+                    self._embedding_extractor.extract_for_all_speakers(
+                        temp_path, speakers
+                    )
+
             finally:
                 # Clean up temporary file
                 import os
