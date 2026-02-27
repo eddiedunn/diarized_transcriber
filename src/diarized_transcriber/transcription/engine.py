@@ -20,19 +20,25 @@ from .gpu import verify_gpu_requirements, cleanup_gpu_memory
 from .audio import process_media_content, create_temp_audio_file
 from .diarization import DiarizationPipeline
 from .embeddings import SpeakerEmbeddingExtractor
+from ..identification.matcher import SpeakerIdentifier
+from ..storage.speaker_store import SpeakerProfileStore
 from ..types import AudioArray
 
 logger = logging.getLogger(__name__)
 
 class TranscriptionEngine:
     """Coordinates transcription and diarization of media content."""
-    
+
     def __init__(
         self,
         model_size: Literal["tiny", "base", "small", "medium", "large", "large-v2", "large-v3", "large-v3-turbo"] = "large-v3-turbo",
         device: Optional[str] = None,
         compute_type: Literal["float16", "float32"] = "float16",
-        extract_embeddings: bool = True
+        extract_embeddings: bool = True,
+        speaker_db_path: Optional[str] = None,
+        identify_speakers: bool = False,
+        auto_enroll_speakers: bool = False,
+        match_threshold: float = 0.4
     ):
         """
         Initialize the transcription engine.
@@ -42,13 +48,36 @@ class TranscriptionEngine:
             device: Computing device (defaults to CUDA if available)
             compute_type: Model computation type
             extract_embeddings: Whether to extract speaker embeddings
+            speaker_db_path: Path to speaker profile database directory
+            identify_speakers: Whether to identify speakers against stored profiles
+            auto_enroll_speakers: Whether to auto-enroll unmatched speakers
+            match_threshold: Cosine distance threshold for speaker matching (0.0-2.0)
 
         Raises:
             GPUConfigError: If GPU verification fails
+            ValueError: If identify_speakers=True but speaker_db_path is None
         """
+        if identify_speakers and speaker_db_path is None:
+            raise ValueError(
+                "speaker_db_path is required when identify_speakers=True"
+            )
+        if match_threshold < 0.0 or match_threshold > 2.0:
+            raise ValueError(
+                f"match_threshold must be between 0.0 and 2.0, got {match_threshold}"
+            )
+        if auto_enroll_speakers and not identify_speakers:
+            logger.warning(
+                "auto_enroll_speakers=True has no effect when "
+                "identify_speakers=False"
+            )
+
         self.model_size = model_size
         self.compute_type = compute_type
         self.extract_embeddings = extract_embeddings
+        self.speaker_db_path = speaker_db_path
+        self.identify_speakers = identify_speakers
+        self.auto_enroll_speakers = auto_enroll_speakers
+        self.match_threshold = match_threshold
         self.device = device or verify_gpu_requirements()
 
         # Initialize components as needed
@@ -56,6 +85,7 @@ class TranscriptionEngine:
         self._align_model = None
         self._diarization = None
         self._embedding_extractor = None
+        self._speaker_identifier = None
         
     def _initialize_whisper(self) -> None:
         """
@@ -176,7 +206,23 @@ class TranscriptionEngine:
                 # Clean up temporary file
                 import os
                 os.unlink(temp_path)
-            
+
+            # Identify speakers against stored profiles
+            if self.identify_speakers and self.speaker_db_path:
+                logger.info("Identifying speakers against stored profiles")
+                if self._speaker_identifier is None:
+                    store = SpeakerProfileStore(self.speaker_db_path)
+                    self._speaker_identifier = SpeakerIdentifier(
+                        store=store,
+                        match_threshold=self.match_threshold,
+                        auto_enroll=self.auto_enroll_speakers,
+                    )
+                id_results = self._speaker_identifier.identify_speakers(speakers)
+                for speaker, profile in id_results:
+                    if profile is not None and profile.name:
+                        speaker.metadata["original_speaker_id"] = speaker.id
+                        speaker.id = profile.name
+
             # Create final TranscriptionResult
             transcription_segments = [
                 TranscriptionSegment(
@@ -187,7 +233,7 @@ class TranscriptionEngine:
                 )
                 for _, row in segments_df.iterrows()
             ]
-            
+
             final_result = TranscriptionResult(
                 content_id=content.id,
                 language=result["language"],

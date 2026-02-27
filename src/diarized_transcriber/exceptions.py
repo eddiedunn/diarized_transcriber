@@ -27,3 +27,7 @@ class DiarizationError(DiarizedTranscriberError):
 class EmbeddingExtractionError(DiarizedTranscriberError):
     """Raised when there are issues extracting speaker embeddings."""
     pass
+
+class StorageError(DiarizedTranscriberError):
+    """Raised when there are issues with speaker profile storage."""
+    pass
