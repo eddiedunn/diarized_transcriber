@@ -37,9 +37,11 @@ def load_audio(
             # Use whisperx's built-in audio loading for URLs
             audio = whisperx.load_audio(str(source))
             return audio, sample_rate
-        
+
         # For file paths and file-like objects, use soundfile
-        audio_data, file_sample_rate = sf.read(source)
+        # dtype="float32" avoids float64 default which causes dtype
+        # mismatches in pyannote's batch norm layers on CUDA
+        audio_data, file_sample_rate = sf.read(source, dtype="float32")
         
         # Resample if necessary
         if file_sample_rate != sample_rate:
