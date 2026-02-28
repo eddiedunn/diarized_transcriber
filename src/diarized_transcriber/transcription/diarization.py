@@ -110,16 +110,23 @@ class DiarizationPipeline:
                 )
 
             logger.info("Starting speaker diarization")
-            diarization = self._pipeline(
+            diarize_output = self._pipeline(
                 audio_input,
                 min_speakers=min_speakers,
                 max_speakers=max_speakers
             )
-            
+
+            # pyannote 4.x returns DiarizeOutput dataclass;
+            # 3.x returned Annotation directly. Handle both.
+            if hasattr(diarize_output, "speaker_diarization"):
+                annotation = diarize_output.speaker_diarization
+            else:
+                annotation = diarize_output
+
             # Convert pyannote output to our data model
             speakers: dict[str, list[TimeSegment]] = {}
-            
-            for segment, _, speaker in diarization.itertracks(yield_label=True):
+
+            for segment, _, speaker in annotation.itertracks(yield_label=True):
                 if speaker not in speakers:
                     speakers[speaker] = []
                     
