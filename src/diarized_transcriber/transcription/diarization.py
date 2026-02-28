@@ -62,30 +62,56 @@ class DiarizationPipeline:
     
     def process_audio(
         self,
-        audio_file: str,
+        audio_file: Optional[str] = None,
+        audio_array: Optional["AudioArray"] = None,
+        sample_rate: Optional[int] = None,
         min_speakers: Optional[int] = None,
         max_speakers: Optional[int] = None
     ) -> list[Speaker]:
         """
-        Process audio file and identify speakers.
-        
+        Process audio and identify speakers.
+
+        Accepts either a file path or pre-loaded audio data. When both are
+        provided, audio_array takes precedence (avoids pyannote 4.x
+        torchcodec/AudioDecoder dependency).
+
         Args:
             audio_file: Path to audio file
+            audio_array: Pre-loaded audio samples (numpy array)
+            sample_rate: Sample rate of audio_array (required with audio_array)
             min_speakers: Minimum number of speakers to detect
             max_speakers: Maximum number of speakers to detect
-            
+
         Returns:
             list[Speaker]: List of identified speakers with their segments
-            
+
         Raises:
             DiarizationError: If diarization fails
         """
         try:
             self._initialize_pipeline()
-            
+
+            # Build pipeline input: prefer waveform dict (pyannote 4.x compat)
+            if audio_array is not None:
+                if sample_rate is None:
+                    raise DiarizationError(
+                        "sample_rate is required when passing audio_array"
+                    )
+                import numpy as np
+                waveform = torch.from_numpy(np.asarray(audio_array)).float()
+                if waveform.ndim == 1:
+                    waveform = waveform.unsqueeze(0)
+                audio_input = {"waveform": waveform, "sample_rate": sample_rate}
+            elif audio_file is not None:
+                audio_input = audio_file
+            else:
+                raise DiarizationError(
+                    "Either audio_file or audio_array must be provided"
+                )
+
             logger.info("Starting speaker diarization")
             diarization = self._pipeline(
-                audio_file,
+                audio_input,
                 min_speakers=min_speakers,
                 max_speakers=max_speakers
             )

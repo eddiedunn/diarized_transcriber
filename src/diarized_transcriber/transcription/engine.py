@@ -155,17 +155,18 @@ class TranscriptionEngine:
             return_char_alignments=False
         )
 
-        # Create temporary file for diarization
+        # Create temporary file for embedding extraction (needs file path)
         temp_path, temp_file = create_temp_audio_file(
             audio_array,
             sample_rate
         )
 
         try:
-            # Perform diarization
+            # Perform diarization (pass waveform directly for pyannote 4.x compat)
             logger.info("Performing speaker diarization")
             speakers = self._diarization.process_audio(
-                temp_path,
+                audio_array=audio_array,
+                sample_rate=sample_rate,
                 min_speakers=min_speakers,
                 max_speakers=max_speakers
             )

@@ -211,7 +211,7 @@ def test_transcription_engine_flow():
     Speaker = transcription_mod.Speaker
     TimeSegment = transcription_mod.TimeSegment
     class DummyDiarization:
-        def process_audio(self, path, min_speakers=None, max_speakers=None):
+        def process_audio(self, audio_file=None, audio_array=None, sample_rate=None, min_speakers=None, max_speakers=None):
             return [Speaker(id="A", segments=[TimeSegment(start=0.0, end=1.0)])]
         def assign_speakers_to_segments(self, speakers, segments):
             for row in segments.data:
@@ -341,7 +341,7 @@ def test_engine_extract_embeddings_false_skips():
     Speaker = transcription_mod.Speaker
     TimeSegment = transcription_mod.TimeSegment
     class DummyDiarization:
-        def process_audio(self, path, min_speakers=None, max_speakers=None):
+        def process_audio(self, audio_file=None, audio_array=None, sample_rate=None, min_speakers=None, max_speakers=None):
             return [Speaker(id="A", segments=[TimeSegment(start=0.0, end=1.0)])]
         def assign_speakers_to_segments(self, speakers, segments):
             for row in segments.data:
@@ -409,7 +409,7 @@ def test_engine_transcribe_includes_embeddings():
     test_embedding = [0.1] * 256
 
     class DummyDiarization:
-        def process_audio(self, path, min_speakers=None, max_speakers=None):
+        def process_audio(self, audio_file=None, audio_array=None, sample_rate=None, min_speakers=None, max_speakers=None):
             return [Speaker(id="A", segments=[TimeSegment(start=0.0, end=1.0)])]
         def assign_speakers_to_segments(self, speakers, segments):
             for row in segments.data:
@@ -559,7 +559,7 @@ def _setup_full_pipeline_stubs():
     test_embedding = [0.1] * 256
 
     class DummyDiarization:
-        def process_audio(self, path, min_speakers=None, max_speakers=None):
+        def process_audio(self, audio_file=None, audio_array=None, sample_rate=None, min_speakers=None, max_speakers=None):
             return [
                 Speaker(id="SPEAKER_00", segments=[TimeSegment(start=0.0, end=5.0)])
             ]
