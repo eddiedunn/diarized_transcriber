@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install uv
 
 # Install gpu-common wheel
-COPY gpu_common-0.1.0-py3-none-any.whl /tmp/
+COPY deploy/gpu_common-0.1.0-py3-none-any.whl /tmp/
 RUN uv pip install --system /tmp/gpu_common-0.1.0-py3-none-any.whl \
     && rm /tmp/gpu_common-0.1.0-py3-none-any.whl
 
