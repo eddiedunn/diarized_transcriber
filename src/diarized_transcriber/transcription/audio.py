@@ -42,7 +42,15 @@ def load_audio(
         # dtype="float32" avoids float64 default which causes dtype
         # mismatches in pyannote's batch norm layers on CUDA
         audio_data, file_sample_rate = sf.read(source, dtype="float32")
-        
+
+        # Mix stereo down to mono (whisperx and pyannote expect 1D mono)
+        if audio_data.ndim == 2:
+            logger.debug(
+                "Converting %d-channel audio to mono",
+                audio_data.shape[1],
+            )
+            audio_data = audio_data.mean(axis=1)
+
         # Resample if necessary
         if file_sample_rate != sample_rate:
             logger.debug(
@@ -54,9 +62,8 @@ def load_audio(
             import torch
             import torchaudio
 
-            waveform = torch.from_numpy(audio_data).float()
-            if waveform.ndim == 1:
-                waveform = waveform.unsqueeze(0)
+            # waveform shape: (1, samples) for torchaudio Resample
+            waveform = torch.from_numpy(audio_data).float().unsqueeze(0)
 
             resampler = torchaudio.transforms.Resample(
                 orig_freq=file_sample_rate,
@@ -64,10 +71,8 @@ def load_audio(
             )
             waveform = resampler(waveform)
 
-            if waveform.shape[0] == 1:
-                audio_data = waveform.squeeze(0).numpy()
-            else:
-                audio_data = waveform.transpose(0, 1).numpy()
+            # Back to 1D numpy array
+            audio_data = waveform.squeeze(0).numpy()
 
         return audio_data, sample_rate
             
