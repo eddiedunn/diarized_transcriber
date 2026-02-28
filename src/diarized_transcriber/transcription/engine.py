@@ -139,11 +139,12 @@ class TranscriptionEngine:
         # Initial transcription
         logger.info("Starting transcription")
         result = self._whisper_model.transcribe(audio_array)
+        detected_language = result["language"]
 
         # Align whisper output
         logger.info("Aligning transcription")
         align_model, metadata = whisperx.load_align_model(
-            language_code=result["language"],
+            language_code=detected_language,
             device=self.device
         )
         result = whisperx.align(
@@ -233,7 +234,7 @@ class TranscriptionEngine:
 
         return TranscriptionResult(
             content_id=content_id,
-            language=result["language"],
+            language=detected_language,
             segments=transcription_segments,
             speakers=speakers,
             metadata={
