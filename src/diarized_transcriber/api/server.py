@@ -90,6 +90,8 @@ def transcribe(req: TranscriptionRequest) -> TranscriptionResponse:
 async def v1_transcribe(
     audio: UploadFile,
     language: Optional[str] = Form(None),
+    min_speakers: Optional[int] = Form(None),
+    max_speakers: Optional[int] = Form(None),
     cleanup: bool = Form(False),
 ) -> dict:
     """Transcribe an uploaded audio file (multipart form).
@@ -116,7 +118,10 @@ async def v1_transcribe(
         from pathlib import Path
 
         result = await _backend.transcribe(
-            Path(tmp_path), language=language
+            Path(tmp_path),
+            language=language,
+            min_speakers=min_speakers,
+            max_speakers=max_speakers,
         )
 
         # Build flat response shape expected by curator

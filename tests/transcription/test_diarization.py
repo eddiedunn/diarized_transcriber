@@ -159,6 +159,93 @@ def test_assign_speakers_to_segments():
     assert [row.get("speaker") for row in result.data] == ["A", "B"]
 
 
+def test_assign_speakers_partial_overlap():
+    """Segments that partially overlap diarization ranges get the best speaker."""
+    pipeline = pipeline_mod.DiarizationPipeline(device="cpu")
+    # Speaker A: 0-2s, Speaker B: 2-4s
+    speakers = [
+        Speaker(id="A", segments=[TimeSegment(start=0.0, end=2.0)]),
+        Speaker(id="B", segments=[TimeSegment(start=2.0, end=4.0)])
+    ]
+
+    # Segment straddles the A/B boundary but mostly in A (0.8s in A vs 0.2s in B)
+    # Old strict-containment would return None; overlap returns "A"
+    segments = pandas.DataFrame([
+        {"start": 1.2, "end": 2.2, "text": "straddle mostly A"},
+    ])
+
+    result = pipeline.assign_speakers_to_segments(speakers, segments)
+    assert [row.get("speaker") for row in result.data] == ["A"]
+
+
+def test_assign_speakers_partial_overlap_favours_larger():
+    """When a segment overlaps two speakers, the one with more overlap wins."""
+    pipeline = pipeline_mod.DiarizationPipeline(device="cpu")
+    speakers = [
+        Speaker(id="A", segments=[TimeSegment(start=0.0, end=2.0)]),
+        Speaker(id="B", segments=[TimeSegment(start=2.0, end=5.0)])
+    ]
+
+    # Segment 1.0-3.0: 1s in A, 1s in B → tie broken by first encountered (A),
+    # but let's test a clear winner: 1.5-3.5 → 0.5s in A, 1.5s in B → B wins
+    segments = pandas.DataFrame([
+        {"start": 1.5, "end": 3.5, "text": "mostly in B"},
+    ])
+
+    result = pipeline.assign_speakers_to_segments(speakers, segments)
+    assert [row.get("speaker") for row in result.data] == ["B"]
+
+
+def test_assign_speakers_no_overlap():
+    """Segments with no overlapping diarization range get None."""
+    pipeline = pipeline_mod.DiarizationPipeline(device="cpu")
+    speakers = [
+        Speaker(id="A", segments=[TimeSegment(start=0.0, end=1.0)]),
+    ]
+
+    # Segment is entirely after speaker A's range
+    segments = pandas.DataFrame([
+        {"start": 5.0, "end": 6.0, "text": "no overlap"},
+    ])
+
+    result = pipeline.assign_speakers_to_segments(speakers, segments)
+    assert [row.get("speaker") for row in result.data] == [None]
+
+
+def test_assign_speakers_multiple_diarization_segments():
+    """Speaker with multiple diarization segments; overlap picks the right one."""
+    pipeline = pipeline_mod.DiarizationPipeline(device="cpu")
+    speakers = [
+        Speaker(id="A", segments=[
+            TimeSegment(start=0.0, end=1.0),
+            TimeSegment(start=3.0, end=5.0),
+        ]),
+        Speaker(id="B", segments=[TimeSegment(start=1.0, end=3.0)])
+    ]
+
+    segments = pandas.DataFrame([
+        {"start": 0.2, "end": 0.8, "text": "in A first"},
+        {"start": 1.5, "end": 2.5, "text": "in B"},
+        {"start": 3.5, "end": 4.5, "text": "in A second"},
+    ])
+
+    result = pipeline.assign_speakers_to_segments(speakers, segments)
+    assert [row.get("speaker") for row in result.data] == ["A", "B", "A"]
+
+
+def test_assign_speakers_empty_segments():
+    """Empty segment DataFrame returns empty result with speaker column."""
+    pipeline = pipeline_mod.DiarizationPipeline(device="cpu")
+    speakers = [
+        Speaker(id="A", segments=[TimeSegment(start=0.0, end=2.0)]),
+    ]
+
+    segments = pandas.DataFrame([])
+
+    result = pipeline.assign_speakers_to_segments(speakers, segments)
+    assert result.data == []
+
+
 def test_default_model_is_updated():
     """Assert default model string is pyannote/speaker-diarization-3.1."""
     pipeline = pipeline_mod.DiarizationPipeline(device="cpu")

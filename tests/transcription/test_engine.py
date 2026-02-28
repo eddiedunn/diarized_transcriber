@@ -35,6 +35,7 @@ def _setup_stubs():
             for idx, row in enumerate(self.data):
                 yield idx, row
     pandas.DataFrame = DataFrame
+    pandas.notna = lambda val: val is not None and val == val
     sys.modules["pandas"] = pandas
 
     torch = types.ModuleType("torch")
@@ -143,6 +144,7 @@ def test_transcription_engine_flow():
                 yield idx, row
     pandas = types.ModuleType("pandas")
     pandas.DataFrame = DataFrame
+    pandas.notna = lambda val: val is not None and val == val
     sys.modules["pandas"] = pandas
 
     whisperx = types.ModuleType("whisperx")
@@ -190,6 +192,20 @@ def test_transcription_engine_flow():
     sys.modules["pyannote"] = pyannote
     sys.modules["pyannote.audio"] = pyannote_audio
     sys.modules["pyannote.core"] = pyannote_core
+
+    pyarrow = types.ModuleType("pyarrow")
+    pyarrow.schema = lambda fields: None
+    pyarrow.field = lambda name, typ: None
+    pyarrow.string = lambda: None
+    pyarrow.int64 = lambda: None
+    pyarrow.float64 = lambda: None
+    pyarrow.float32 = lambda: None
+    pyarrow.list_ = lambda typ, size=-1: None
+    sys.modules["pyarrow"] = pyarrow
+
+    lancedb_mod = types.ModuleType("lancedb")
+    lancedb_mod.connect = lambda path: MagicMock()
+    sys.modules["lancedb"] = lancedb_mod
 
     pkg = types.ModuleType("diarized_transcriber")
     pkg.__path__ = [str(Path(__file__).resolve().parents[2] / "src" / "diarized_transcriber")]

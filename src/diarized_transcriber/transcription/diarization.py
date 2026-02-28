@@ -157,43 +157,57 @@ class DiarizationPipeline:
     ) -> pd.DataFrame:
         """
         Assign speaker labels to transcription segments.
-        
+
+        Uses overlap-based matching: for each transcription segment, the
+        speaker whose diarization segment has the largest time overlap is
+        assigned.  If no diarization segment overlaps a transcription
+        segment at all, the speaker is left as None.
+
         Args:
             speakers: List of identified speakers
             segments: DataFrame with start/end times and transcription
-            
+
         Returns:
             pd.DataFrame: Segments with speaker labels assigned
-            
+
         Raises:
             DiarizationError: If speaker assignment fails
         """
         try:
-            # Create a mapping of time ranges to speakers
-            speaker_ranges = []
+            # Build a flat list of (start, end, speaker_id) tuples sorted by
+            # start time.  Sorting enables an early-exit optimisation when
+            # scanning for overlaps.
+            speaker_ranges: list[tuple[float, float, str]] = []
             for speaker in speakers:
-                for segment in speaker.segments:
-                    speaker_ranges.append({
-                        'start': segment.start,
-                        'end': segment.end,
-                        'speaker': speaker.id
-                    })
-            
-            speaker_df = pd.DataFrame(speaker_ranges)
-            
-            # Function to find speaker for a given segment
-            def find_speaker(row):
-                matches = speaker_df[
-                    (speaker_df['start'] <= row['start']) &
-                    (speaker_df['end'] >= row['end'])
-                ]
-                return matches['speaker'].iloc[0] if not matches.empty else None
-            
+                for seg in speaker.segments:
+                    speaker_ranges.append((seg.start, seg.end, speaker.id))
+            speaker_ranges.sort(key=lambda r: r[0])
+
+            def find_speaker(row) -> Optional[str]:
+                seg_start = row['start']
+                seg_end = row['end']
+                best_speaker: Optional[str] = None
+                best_overlap: float = 0.0
+
+                for dr_start, dr_end, spk_id in speaker_ranges:
+                    # If the diarization range starts after this segment ends,
+                    # no further ranges can overlap (list is sorted by start).
+                    if dr_start >= seg_end:
+                        break
+
+                    # Calculate overlap: max(0, min(ends) - max(starts))
+                    overlap = min(dr_end, seg_end) - max(dr_start, seg_start)
+                    if overlap > best_overlap:
+                        best_overlap = overlap
+                        best_speaker = spk_id
+
+                return best_speaker
+
             # Add speaker column to segments
             segments['speaker'] = segments.apply(find_speaker, axis=1)
-            
+
             return segments
-            
+
         except Exception as e:
             raise DiarizationError(
                 f"Failed to assign speakers to segments: {str(e)}"
