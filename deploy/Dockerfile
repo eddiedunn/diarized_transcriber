@@ -16,13 +16,13 @@ RUN pip install uv
 
 # Install gpu-common wheel
 COPY deploy/gpu_common-0.1.0-py3-none-any.whl /tmp/
-RUN uv pip install --system /tmp/gpu_common-0.1.0-py3-none-any.whl \
+RUN uv pip install --system --python python3.11 /tmp/gpu_common-0.1.0-py3-none-any.whl \
     && rm /tmp/gpu_common-0.1.0-py3-none-any.whl
 
 # Install diarized_transcriber
 WORKDIR /app
 COPY . /src/diarized_transcriber
-RUN uv pip install --system "/src/diarized_transcriber[server,profiles]"
+RUN uv pip install --system --python python3.11 "/src/diarized_transcriber[server,profiles]"
 
 # Environment defaults
 ENV DIARIZED_HOST=0.0.0.0

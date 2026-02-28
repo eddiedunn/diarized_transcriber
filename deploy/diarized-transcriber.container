@@ -14,7 +14,6 @@ Environment=DIARIZED_REDIS_URL=redis://redis:6379
 Environment=DIARIZED_MODEL_SIZE=large-v3-turbo
 Environment=DIARIZED_PORT=8000
 Volume=%h/.cache/huggingface:/root/.cache/huggingface:Z
-Volume=%h/.config/huggingface:/root/.config/huggingface:ro,Z
 Volume=diarized-speaker-db:/data/speaker_profiles_db:Z
 Volume=/tmp/diarized-transcriber:/tmp:Z
 
