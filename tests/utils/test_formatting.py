@@ -16,8 +16,13 @@ def Field(default=None, *, default_factory=None, **_kwargs):
     if default_factory is not None:
         return default_factory()
     return default
+def field_validator(*args, **kwargs):
+    def decorator(fn):
+        return classmethod(fn) if not isinstance(fn, classmethod) else fn
+    return decorator
 pydantic.BaseModel = BaseModel
 pydantic.Field = Field
+pydantic.field_validator = field_validator
 pydantic.HttpUrl = str
 sys.modules.setdefault("pydantic", pydantic)
 

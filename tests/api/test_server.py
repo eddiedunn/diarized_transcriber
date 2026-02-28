@@ -17,6 +17,11 @@ def test_transcribe_endpoint():
         return default
     pydantic.BaseModel = BaseModel
     pydantic.Field = Field
+    def field_validator(*args, **kwargs):
+        def decorator(fn):
+            return classmethod(fn) if not isinstance(fn, classmethod) else fn
+        return decorator
+    pydantic.field_validator = field_validator
     pydantic.HttpUrl = str
     sys.modules["pydantic"] = pydantic
 
@@ -99,6 +104,12 @@ def test_transcribe_endpoint():
             self.status_code = status_code
             self.detail = detail
     fastapi.HTTPException = HTTPException
+    class UploadFile:
+        pass
+    fastapi.UploadFile = UploadFile
+    def Form(default=None):
+        return default
+    fastapi.Form = Form
     class FastAPI:
         def __init__(self, *a, **k):
             self.routes = {}
@@ -184,6 +195,11 @@ def test_health_endpoint():
         return default
     pydantic.BaseModel = BaseModel
     pydantic.Field = Field
+    def field_validator(*args, **kwargs):
+        def decorator(fn):
+            return classmethod(fn) if not isinstance(fn, classmethod) else fn
+        return decorator
+    pydantic.field_validator = field_validator
     pydantic.HttpUrl = str
     sys.modules["pydantic"] = pydantic
 
@@ -221,6 +237,12 @@ def test_health_endpoint():
     class HTTPException(Exception):
         pass
     fastapi.HTTPException = HTTPException
+    class UploadFile:
+        pass
+    fastapi.UploadFile = UploadFile
+    def Form(default=None):
+        return default
+    fastapi.Form = Form
     class FastAPI:
         def __init__(self, *a, **k):
             self.routes = {}
@@ -255,6 +277,11 @@ def test_server_main_runs_uvicorn():
     pydantic = types.ModuleType("pydantic")
     pydantic.BaseModel = type("BaseModel", (), {})
     pydantic.Field = lambda default=None, **_: default
+    def field_validator(*args, **kwargs):
+        def decorator(fn):
+            return classmethod(fn) if not isinstance(fn, classmethod) else fn
+        return decorator
+    pydantic.field_validator = field_validator
     pydantic.HttpUrl = str
     sys.modules["pydantic"] = pydantic
 
@@ -292,6 +319,12 @@ def test_server_main_runs_uvicorn():
     class HTTPException(Exception):
         pass
     fastapi.HTTPException = HTTPException
+    class UploadFile:
+        pass
+    fastapi.UploadFile = UploadFile
+    def Form(default=None):
+        return default
+    fastapi.Form = Form
     class FastAPI:
         def __init__(self, *a, **k):
             self.routes = {}
@@ -350,6 +383,11 @@ def test_transcribe_default_model_is_large_v3_turbo():
         return default
     pydantic.BaseModel = BaseModel
     pydantic.Field = Field
+    def field_validator(*args, **kwargs):
+        def decorator(fn):
+            return classmethod(fn) if not isinstance(fn, classmethod) else fn
+        return decorator
+    pydantic.field_validator = field_validator
     pydantic.HttpUrl = str
     sys.modules["pydantic"] = pydantic
 
@@ -432,6 +470,12 @@ def test_transcribe_default_model_is_large_v3_turbo():
             self.status_code = status_code
             self.detail = detail
     fastapi.HTTPException = HTTPException
+    class UploadFile:
+        pass
+    fastapi.UploadFile = UploadFile
+    def Form(default=None):
+        return default
+    fastapi.Form = Form
     class FastAPI:
         def __init__(self, *a, **k):
             self.routes = {}
@@ -523,6 +567,11 @@ def test_transcribe_request_schema_model_size_literal():
         return default
     pydantic.BaseModel = BaseModel
     pydantic.Field = Field
+    def field_validator(*args, **kwargs):
+        def decorator(fn):
+            return classmethod(fn) if not isinstance(fn, classmethod) else fn
+        return decorator
+    pydantic.field_validator = field_validator
     pydantic.HttpUrl = str
     sys.modules["pydantic"] = pydantic
 

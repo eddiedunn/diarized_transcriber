@@ -164,9 +164,17 @@ def _stub_heavy_deps():
         def include_router(self, router):
             self._routers.append(router)
 
+    class UploadFile:
+        pass
+
+    def Form(default=None):
+        return default
+
     fastapi.HTTPException = HTTPException
     fastapi.FastAPI = FastAPI
     fastapi.APIRouter = APIRouter
+    fastapi.UploadFile = UploadFile
+    fastapi.Form = Form
     sys.modules["fastapi"] = fastapi
 
     return HTTPException
