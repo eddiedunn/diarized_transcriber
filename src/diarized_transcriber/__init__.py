@@ -45,3 +45,21 @@ __all__ = [
     'TranscriptionError',
     'DiarizationError',
 ]
+
+# Optional profile-related imports (require 'profiles' extra)
+try:
+    from .models.speaker_profile import SpeakerProfile, SpeakerMatch
+    from .storage.speaker_store import SpeakerProfileStore
+    from .identification.matcher import SpeakerIdentifier
+    from .exceptions import StorageError, EmbeddingExtractionError
+
+    __all__.extend([
+        'SpeakerProfile',
+        'SpeakerMatch',
+        'SpeakerProfileStore',
+        'SpeakerIdentifier',
+        'StorageError',
+        'EmbeddingExtractionError',
+    ])
+except ImportError:
+    pass

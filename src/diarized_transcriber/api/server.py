@@ -10,6 +10,13 @@ from .schemas import TranscriptionRequest, TranscriptionResponse
 
 app = FastAPI(title="Diarized Transcriber")
 
+# Include speaker management routes if available
+try:
+    from .speaker_routes import router as speaker_router
+    app.include_router(speaker_router)
+except (ImportError, AttributeError):
+    pass
+
 
 @app.get("/")
 def read_root() -> dict[str, str]:
