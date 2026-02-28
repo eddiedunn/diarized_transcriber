@@ -220,12 +220,13 @@ class TranscriptionEngine:
                     speaker.id = profile.name
 
         # Create final TranscriptionResult
+        # pandas NaN is float, not None — coerce to None for Pydantic
         transcription_segments = [
             TranscriptionSegment(
                 start=row["start"],
                 end=row["end"],
                 text=row["text"],
-                speaker=row["speaker"]
+                speaker=row["speaker"] if pd.notna(row["speaker"]) else None
             )
             for _, row in segments_df.iterrows()
         ]
