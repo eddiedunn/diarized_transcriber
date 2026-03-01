@@ -7,3 +7,5 @@ feeds.yaml
 core
 dist/
 build/
+.venv/
+venv/

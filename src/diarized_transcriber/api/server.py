@@ -80,7 +80,8 @@ def transcribe(req: TranscriptionRequest) -> TranscriptionResponse:
         )
         return TranscriptionResponse(result=result)
     except Exception as exc:  # pragma: no cover - fastapi handles
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("transcribe failed")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 # ── v1 endpoints ──────────────────────────────────────────────────────
@@ -167,7 +168,7 @@ async def v1_transcribe(
         raise
     except Exception as exc:
         logger.exception("v1/transcribe failed")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
