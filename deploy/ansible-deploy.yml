@@ -1,0 +1,90 @@
+---
+# Deploy diarized_transcriber to tela
+#
+# Usage:
+#   ansible-playbook -i inventory/vps/hosts.yml playbooks/deploy-diarized-transcriber.yml --limit tela
+#
+# Variables:
+#   diarized_transcriber_src_dir: path to checked-out repo on the target host
+#                                 (set by Jenkins via WORKSPACE env var)
+
+- name: Deploy diarized_transcriber
+  hosts: all
+  gather_facts: false
+  become: true
+
+  vars:
+    service_name: diarized-transcriber
+    quadlet_dir: /etc/containers/systemd
+    app_user: eddie
+    app_group: eddie
+    container_port: 8000
+    host_port: 8721
+    hf_cache_dir: /root/.cache/huggingface
+    data_dir: /opt/diarized-transcriber
+    tmp_dir: /tmp/diarized-transcriber
+    # Override from Jenkins: -e diarized_transcriber_src_dir=...
+    diarized_transcriber_src_dir: "{{ ansible_env.HOME }}/diarized_transcriber"
+
+  tasks:
+    - name: Ensure data and temp directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0755"
+      loop:
+        - "{{ data_dir }}"
+        - "{{ tmp_dir }}"
+        - "{{ hf_cache_dir }}"
+
+    - name: Build container image from source
+      ansible.builtin.command:
+        cmd: >
+          podman build
+          -t localhost/diarized-transcriber:latest
+          -f deploy/Dockerfile
+          .
+        chdir: "{{ diarized_transcriber_src_dir }}"
+      become_user: "{{ app_user }}"
+      changed_when: true
+
+    - name: Copy quadlet container unit file
+      ansible.builtin.copy:
+        src: "{{ diarized_transcriber_src_dir }}/deploy/diarized-transcriber.container"
+        dest: "{{ quadlet_dir }}/{{ service_name }}.container"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload and restart service
+
+    - name: Ensure HuggingFace cache volume mount source exists
+      ansible.builtin.file:
+        path: "{{ hf_cache_dir }}"
+        state: directory
+        mode: "0755"
+
+  handlers:
+    - name: Reload and restart service
+      block:
+        - name: Reload systemd daemon
+          ansible.builtin.systemd:
+            daemon_reload: true
+
+        - name: Restart diarized-transcriber service
+          ansible.builtin.systemd:
+            name: "{{ service_name }}"
+            state: restarted
+            enabled: true
+
+    - name: Verify service health
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ host_port }}/health"
+        return_content: false
+        status_code: 200
+      retries: 12
+      delay: 10
+      register: health_check
+      until: health_check.status == 200

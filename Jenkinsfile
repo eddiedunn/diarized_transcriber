@@ -5,8 +5,7 @@ pipeline {
         SONAR_HOST_URL    = 'http://127.0.0.1:9200'
         SONAR_PROJECT_KEY = 'diarized_transcriber'
         TRIVY_CACHE_DIR   = '/opt/trivy/cache'
-        DEPLOY_PLAYBOOK   = 'playbooks/deploy-diarized-transcriber.yml'
-        INFRA_REPO        = 'https://github.com/eddiedunn/starblue-infra.git'
+        DEPLOY_PLAYBOOK   = 'deploy/ansible-deploy.yml'
     }
 
     options {
@@ -62,10 +61,6 @@ pipeline {
         stage('Deploy') {
             steps {
                 sh '''
-                    # Clone infra repo to get the deploy playbook
-                    rm -rf /tmp/starblue-infra-deploy
-                    git clone --depth=1 "${INFRA_REPO}" /tmp/starblue-infra-deploy
-                    cd /tmp/starblue-infra-deploy
                     # Run ansible with local connection (job already runs on tela)
                     ANSIBLE_HOST_KEY_CHECKING=False \
                     ansible-playbook \
@@ -74,11 +69,6 @@ pipeline {
                         --connection local \
                         -e "diarized_transcriber_src_dir=${WORKSPACE}"
                 '''
-            }
-            post {
-                always {
-                    sh 'rm -rf /tmp/starblue-infra-deploy || true'
-                }
             }
         }
     }
