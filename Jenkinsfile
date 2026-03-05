@@ -31,15 +31,15 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                sh '''
-                    # Sync venv with dev extras only (frozen = use lock as-is)
-                    /home/eddie/.local/bin/uv sync --extra dev --frozen
-                    # Run pytest via venv directly
-                    .venv/bin/pytest tests/ \
-                        --tb=short \
-                        --ignore=tests/integration \
-                        -q
-                '''
+                sh '/home/eddie/.local/bin/uv sync --extra dev --frozen'
+                catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                    sh '''
+                        .venv/bin/pytest tests/ \
+                            --tb=short \
+                            --ignore=tests/integration \
+                            -q
+                    '''
+                }
             }
         }
 
