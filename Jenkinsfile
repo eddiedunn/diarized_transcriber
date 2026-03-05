@@ -32,8 +32,10 @@ pipeline {
         stage('Run Tests') {
             steps {
                 sh '''
-                    # --frozen: use lock file as-is, skip re-resolution
-                    /home/eddie/.local/bin/uv run --frozen pytest tests/ \
+                    # Sync venv with dev extras only (frozen = use lock as-is)
+                    /home/eddie/.local/bin/uv sync --extra dev --frozen
+                    # Run pytest via venv directly
+                    .venv/bin/pytest tests/ \
                         --tb=short \
                         --ignore=tests/integration \
                         -q
