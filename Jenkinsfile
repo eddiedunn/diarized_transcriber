@@ -18,7 +18,7 @@ pipeline {
         stage('Trivy Security Scan') {
             steps {
                 sh '''
-                    /usr/local/bin/trivy fs \
+                    /usr/bin/trivy fs \
                         --cache-dir "${TRIVY_CACHE_DIR}" \
                         --exit-code 1 \
                         --severity HIGH,CRITICAL \
@@ -85,7 +85,7 @@ pipeline {
 
     post {
         always {
-            cleanWs()
+            deleteDir()
         }
         success {
             echo 'Pipeline completed successfully.'
