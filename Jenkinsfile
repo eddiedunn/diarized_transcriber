@@ -60,9 +60,6 @@ pipeline {
         }
 
         stage('Deploy') {
-            when {
-                branch 'main'
-            }
             steps {
                 sh '''
                     # Clone infra repo to get the deploy playbook
