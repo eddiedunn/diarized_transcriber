@@ -32,8 +32,9 @@ pipeline {
         stage('Run Tests') {
             steps {
                 sh '''
-                    /home/eddie/.local/bin/uv run pytest tests/ \
-                        -v --tb=short \
+                    # --frozen: use lock file as-is, skip re-resolution
+                    /home/eddie/.local/bin/uv run --frozen pytest tests/ \
+                        --tb=short \
                         --ignore=tests/integration \
                         -q
                 '''
