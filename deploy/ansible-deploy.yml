@@ -67,16 +67,16 @@
       become: true
 
   handlers:
-    - name: Reload and restart service
-      block:
-        - name: Reload systemd daemon
-          ansible.builtin.systemd:
-            daemon_reload: true
-          become: true
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+      listen: Reload and restart service
 
-        - name: Restart diarized-transcriber service
-          ansible.builtin.systemd:
-            name: "{{ service_name }}"
-            state: restarted
-            enabled: true
-          become: true
+    - name: Restart diarized-transcriber service
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: restarted
+        enabled: true
+      become: true
+      listen: Reload and restart service
