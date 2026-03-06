@@ -1,45 +1,42 @@
 ---
 # Deploy diarized_transcriber to tela
 #
-# Usage:
-#   ansible-playbook -i inventory/vps/hosts.yml playbooks/deploy-diarized-transcriber.yml --limit tela
+# Usage (run on tela with local connection):
+#   ansible-playbook -i "127.0.0.1," deploy/ansible-deploy.yml \
+#     --connection local -e diarized_transcriber_src_dir=<path>
 #
 # Variables:
-#   diarized_transcriber_src_dir: path to checked-out repo on the target host
-#                                 (set by Jenkins via WORKSPACE env var)
+#   diarized_transcriber_src_dir: path to checked-out repo on tela
 
 - name: Deploy diarized_transcriber
   hosts: all
   gather_facts: false
-  become: true
+  # No global become - podman build runs as the connected user (eddie)
 
   vars:
     service_name: diarized-transcriber
     quadlet_dir: /etc/containers/systemd
-    app_user: eddie
-    app_group: eddie
-    container_port: 8000
     host_port: 8721
-    hf_cache_dir: /root/.cache/huggingface
+    hf_cache_dir: /home/eddie/.cache/huggingface
     data_dir: /opt/diarized-transcriber
     tmp_dir: /tmp/diarized-transcriber
-    # Override from Jenkins: -e diarized_transcriber_src_dir=...
     diarized_transcriber_src_dir: "{{ ansible_env.HOME }}/diarized_transcriber"
 
   tasks:
-    - name: Ensure data and temp directories exist
+    - name: Ensure data directories exist (root)
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        owner: "{{ app_user }}"
-        group: "{{ app_group }}"
+        owner: eddie
+        group: eddie
         mode: "0755"
       loop:
         - "{{ data_dir }}"
         - "{{ tmp_dir }}"
         - "{{ hf_cache_dir }}"
+      become: true
 
-    - name: Build container image from source
+    - name: Build container image from source (as eddie)
       ansible.builtin.command:
         cmd: >
           podman build
@@ -47,10 +44,9 @@
           -f deploy/Dockerfile
           .
         chdir: "{{ diarized_transcriber_src_dir }}"
-      become_user: "{{ app_user }}"
       changed_when: true
 
-    - name: Copy quadlet container unit file
+    - name: Copy quadlet container unit file (root)
       ansible.builtin.copy:
         src: "{{ diarized_transcriber_src_dir }}/deploy/diarized-transcriber.container"
         dest: "{{ quadlet_dir }}/{{ service_name }}.container"
@@ -58,13 +54,17 @@
         owner: root
         group: root
         mode: "0644"
+      become: true
       notify: Reload and restart service
 
-    - name: Ensure HuggingFace cache volume mount source exists
+    - name: Ensure HuggingFace cache dir exists
       ansible.builtin.file:
         path: "{{ hf_cache_dir }}"
         state: directory
+        owner: eddie
+        group: eddie
         mode: "0755"
+      become: true
 
   handlers:
     - name: Reload and restart service
@@ -72,19 +72,11 @@
         - name: Reload systemd daemon
           ansible.builtin.systemd:
             daemon_reload: true
+          become: true
 
         - name: Restart diarized-transcriber service
           ansible.builtin.systemd:
             name: "{{ service_name }}"
             state: restarted
             enabled: true
-
-    - name: Verify service health
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:{{ host_port }}/health"
-        return_content: false
-        status_code: 200
-      retries: 12
-      delay: 10
-      register: health_check
-      until: health_check.status == 200
+          become: true
