@@ -53,10 +53,16 @@ class SpeakerMatch(BaseModel):
     distance: float = Field(ge=0.0, le=2.0)
     confidence: float = Field(ge=0.0, le=1.0)
 
+    @field_validator("distance", mode="before")
+    @classmethod
+    def clamp_distance(cls, v: float) -> float:
+        # Cosine distance on near-identical vectors can produce tiny negatives
+        return max(0.0, float(v))
+
     @field_validator("confidence", mode="before")
     @classmethod
     def compute_confidence(cls, v: float, info) -> float:
         if v is not None:
-            return v
+            return min(1.0, max(0.0, float(v)))
         distance = info.data.get("distance", 0.0)
-        return 1.0 - distance
+        return min(1.0, max(0.0, 1.0 - distance))
