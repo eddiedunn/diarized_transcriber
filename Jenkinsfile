@@ -4,7 +4,6 @@ pipeline {
     environment {
         SONAR_HOST_URL    = 'http://127.0.0.1:9200'
         SONAR_PROJECT_KEY = 'diarized_transcriber'
-        TRIVY_CACHE_DIR   = '/opt/trivy/cache'
         DEPLOY_PLAYBOOK   = 'deploy/ansible-deploy.yml'
     }
 
@@ -15,60 +14,66 @@ pipeline {
 
     stages {
         stage('Trivy Security Scan') {
+            agent {
+                docker {
+                    image 'aquasec/trivy:latest'
+                    reuseNode true
+                    args '--entrypoint="" -u root --network host -v /opt/trivy/cache:/root/.cache/trivy'
+                }
+            }
             steps {
-                sh '''
-                    /usr/bin/trivy fs \
-                        --cache-dir "${TRIVY_CACHE_DIR}" \
-                        --exit-code 1 \
-                        --severity HIGH,CRITICAL \
-                        --scanners vuln,secret \
-                        --format table \
-                        .
-                '''
+                sh '''trivy fs \
+                    --exit-code 1 \
+                    --severity HIGH,CRITICAL \
+                    --scanners vuln,secret \
+                    --format table \
+                    .'''
             }
         }
 
         stage('Run Tests') {
+            agent {
+                docker {
+                    image 'ghcr.io/astral-sh/uv:python3.11-bookworm-slim'
+                    reuseNode true
+                    args '-u root --network host'
+                }
+            }
             steps {
-                sh '/home/eddie/.local/bin/uv sync --extra dev --frozen'
+                sh 'uv sync --extra dev --frozen'
                 catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
-                    sh '''
-                        .venv/bin/pytest tests/ \
-                            --tb=short \
-                            --ignore=tests/integration \
-                            -q
-                    '''
+                    sh '.venv/bin/pytest tests/ --ignore=tests/integration --tb=short -q'
                 }
             }
         }
 
         stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'sonarsource/sonar-scanner-cli:latest'
+                    reuseNode true
+                    args '-u root --network host'
+                }
+            }
             steps {
                 withCredentials([string(credentialsId: 'sonarqube-token-diarized-transcriber', variable: 'SONAR_TOKEN')]) {
-                    sh '''
-                        sonar-scanner \
-                            -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
-                            -Dsonar.sources=src \
-                            -Dsonar.tests=tests \
-                            -Dsonar.python.coverage.reportPaths=coverage.xml \
-                            -Dsonar.host.url="${SONAR_HOST_URL}" \
-                            -Dsonar.token="${SONAR_TOKEN}"
-                    '''
+                    sh '''sonar-scanner \
+                        -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+                        -Dsonar.sources=src \
+                        -Dsonar.tests=tests \
+                        -Dsonar.host.url="${SONAR_HOST_URL}" \
+                        -Dsonar.token="${SONAR_TOKEN}"'''
                 }
             }
         }
 
         stage('Deploy') {
             steps {
-                sh '''
-                    # Run ansible with local connection (job already runs on tela)
-                    ANSIBLE_HOST_KEY_CHECKING=False \
-                    ansible-playbook \
-                        -i "127.0.0.1," \
-                        "${DEPLOY_PLAYBOOK}" \
-                        --connection local \
-                        -e "diarized_transcriber_src_dir=${WORKSPACE}"
-                '''
+                sh '''ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook \
+                    -i "127.0.0.1," \
+                    "${DEPLOY_PLAYBOOK}" \
+                    --connection local \
+                    -e "diarized_transcriber_src_dir=${WORKSPACE}"'''
             }
         }
     }
