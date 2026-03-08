@@ -94,6 +94,7 @@ async def v1_transcribe(
     min_speakers: Optional[int] = Form(None),
     max_speakers: Optional[int] = Form(None),
     cleanup: bool = Form(False),
+    include_embeddings: bool = Form(False),
 ) -> dict:
     """Transcribe an uploaded audio file (multipart form).
 
@@ -143,13 +144,14 @@ async def v1_transcribe(
                 segment_count = len(
                     [s for s in result.segments if s.speaker == spk.id]
                 )
-                speakers.append(
-                    {
-                        "id": spk.id,
-                        "name": spk.metadata.get("original_speaker_id"),
-                        "segment_count": segment_count,
-                    }
-                )
+                entry = {
+                    "id": spk.id,
+                    "name": spk.metadata.get("original_speaker_id"),
+                    "segment_count": segment_count,
+                }
+                if include_embeddings and spk.embedding is not None:
+                    entry["embedding"] = spk.embedding
+                speakers.append(entry)
 
         # Compute total duration from segments
         duration = 0.0

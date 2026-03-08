@@ -174,6 +174,11 @@ class DiarizationPipeline:
             DiarizationError: If speaker assignment fails
         """
         try:
+            # Nothing to do when there are no transcription segments.
+            if segments.empty:
+                segments['speaker'] = pd.Series(dtype=object)
+                return segments
+
             # Build a flat list of (start, end, speaker_id) tuples sorted by
             # start time.  Sorting enables an early-exit optimisation when
             # scanning for overlaps.
