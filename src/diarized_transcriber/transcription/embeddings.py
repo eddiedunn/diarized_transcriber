@@ -5,6 +5,8 @@ import os
 from typing import Optional
 
 import numpy as np
+import soundfile as sf
+import torch
 from pyannote.audio import Inference, Model
 from pyannote.core import Segment
 
@@ -42,7 +44,29 @@ class SpeakerEmbeddingExtractor:
             EMBEDDING_MODEL, token=auth_token
         )
         self._inference = Inference(self._model, window="whole")
-        self._inference.to(self.device)
+        self._inference.to(torch.device(self.device))
+
+    def _load_audio_dict(self, audio_file: str) -> dict:
+        """Load audio file into a pyannote-compatible waveform dict.
+
+        Uses soundfile to avoid the torchcodec/AudioDecoder dependency
+        that is broken in some container environments.
+
+        Args:
+            audio_file: Path to the audio file.
+
+        Returns:
+            Dict with 'waveform' (channel, time) tensor and 'sample_rate'.
+        """
+        data, sample_rate = sf.read(audio_file)
+        waveform = torch.tensor(data, dtype=torch.float32)
+        if waveform.dim() == 1:
+            # Mono: (time,) -> (1, time)
+            waveform = waveform.unsqueeze(0)
+        else:
+            # Stereo: (time, channel) -> (channel, time)
+            waveform = waveform.T
+        return {"waveform": waveform, "sample_rate": sample_rate}
 
     def extract_for_speaker(
         self, audio_file: str, speaker: Speaker
@@ -88,12 +112,15 @@ class SpeakerEmbeddingExtractor:
                 f"({total_duration:.2f}s < {MIN_TOTAL_SPEECH}s)"
             )
 
+        # Load audio once as in-memory dict to avoid torchcodec/AudioDecoder issues
+        audio_dict = self._load_audio_dict(audio_file)
+
         # Extract embeddings from each valid segment
         embeddings = []
         for seg in valid_segments:
             try:
                 segment = Segment(seg.start, seg.end)
-                emb = self._inference.crop(audio_file, segment)
+                emb = self._inference.crop(audio_dict, segment)
                 embeddings.append(np.array(emb).flatten())
             except Exception as e:
                 logger.warning(

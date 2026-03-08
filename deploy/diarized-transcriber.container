@@ -18,6 +18,8 @@ Volume=diarized-speaker-db:/data/speaker_profiles_db:Z
 Volume=/tmp/diarized-transcriber:/tmp:Z
 
 Environment=DIARIZED_SPEAKER_DB_PATH=/data/speaker_profiles_db
+Environment=DIARIZED_IDENTIFY_SPEAKERS=true
+Environment=DIARIZED_MATCH_THRESHOLD=0.4
 Secret=hf_token,type=env,target=HF_TOKEN
 
 [Service]
