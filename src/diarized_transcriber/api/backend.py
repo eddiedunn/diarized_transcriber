@@ -45,7 +45,7 @@ class DiarizedTranscriberBackend:
         max_speakers: Optional[int] = None,
     ) -> TranscriptionResult:
         """Transcribe an audio file, acquiring the GPU lock first."""
-        async with self._lock.acquire(timeout=7200, blocking_timeout=600):
+        async with self._lock.acquire(timeout=1800, blocking_timeout=600):
             engine = await self._manager.get()
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
