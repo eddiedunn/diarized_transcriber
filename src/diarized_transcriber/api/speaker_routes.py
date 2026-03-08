@@ -5,6 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
+from ..config import get_settings
 from ..exceptions import StorageError
 from ..models.speaker_profile import SpeakerProfile
 from ..storage.speaker_store import SpeakerProfileStore
@@ -28,7 +29,7 @@ def get_store() -> SpeakerProfileStore:
     """Lazily initialize and return the SpeakerProfileStore singleton."""
     global _store
     if _store is None:
-        db_path = os.environ.get("SPEAKER_DB_PATH", "./speaker_profiles_db")
+        db_path = get_settings().speaker_db_path
         _store = SpeakerProfileStore(db_path=db_path)
     return _store
 
