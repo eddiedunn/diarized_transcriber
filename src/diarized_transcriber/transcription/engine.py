@@ -205,6 +205,7 @@ class TranscriptionEngine:
             os.unlink(temp_path)
 
         # Identify speakers against stored profiles
+        speaker_id_map: dict[str, str] = {}
         if self.identify_speakers and self.speaker_db_path:
             logger.info("Identifying speakers against stored profiles")
             if self._speaker_identifier is None:
@@ -217,8 +218,16 @@ class TranscriptionEngine:
             id_results = self._speaker_identifier.identify_speakers(speakers)
             for speaker, profile in id_results:
                 if profile is not None and profile.name:
-                    speaker.metadata["original_speaker_id"] = speaker.id
+                    original_id = speaker.id
+                    speaker.metadata["original_speaker_id"] = original_id
                     speaker.id = profile.name
+                    speaker_id_map[original_id] = profile.name
+
+        # Remap segment speaker labels to identified names where available
+        if speaker_id_map and "speaker" in segments_df.columns:
+            segments_df["speaker"] = segments_df["speaker"].map(
+                lambda s: speaker_id_map.get(s, s) if pd.notna(s) else s
+            )
 
         # Create final TranscriptionResult
         # pandas NaN is float, not None — coerce to None for Pydantic
