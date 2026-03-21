@@ -31,7 +31,26 @@ torch = types.ModuleType("torch")
 def device(x):
     return x
 torch.device = device
-sys.modules.setdefault("torch", torch)
+
+class _Tensor(list):
+    def dim(self):
+        return 1
+    def unsqueeze(self, dim):
+        return self
+    @property
+    def T(self):
+        return self
+
+def _torch_tensor(data, dtype=None):
+    return _Tensor(data if hasattr(data, '__iter__') else [data])
+
+# Enrich existing torch module if already registered by another test file
+if "torch" in sys.modules:
+    torch = sys.modules["torch"]
+torch.device = device
+torch.tensor = _torch_tensor
+torch.float32 = float
+sys.modules["torch"] = torch
 
 # Functional numpy stub
 numpy = types.ModuleType("numpy")

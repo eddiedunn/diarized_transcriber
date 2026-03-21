@@ -28,9 +28,29 @@ def _setup_stubs():
     sys.modules["pydantic"] = pydantic
 
     pandas = types.ModuleType("pandas")
+    class _Series:
+        def __init__(self, data):
+            self.data = list(data)
+        def map(self, func):
+            return _Series([func(x) for x in self.data])
+        def __iter__(self):
+            return iter(self.data)
     class DataFrame:
         def __init__(self, rows):
             self.data = [dict(row) for row in rows]
+        @property
+        def columns(self):
+            if self.data:
+                return list(self.data[0].keys())
+            return []
+        def __getitem__(self, key):
+            if isinstance(key, str):
+                return _Series([row.get(key) for row in self.data])
+            raise TypeError("Unsupported key type")
+        def __setitem__(self, key, value):
+            values = value.data if isinstance(value, _Series) else value
+            for row, val in zip(self.data, values):
+                row[key] = val
         def iterrows(self):
             for idx, row in enumerate(self.data):
                 yield idx, row
@@ -136,9 +156,29 @@ def test_transcription_engine_flow():
     pydantic.HttpUrl = str
     sys.modules["pydantic"] = pydantic
 
+    class _InlineSeries:
+        def __init__(self, data):
+            self.data = list(data)
+        def map(self, func):
+            return _InlineSeries([func(x) for x in self.data])
+        def __iter__(self):
+            return iter(self.data)
     class DataFrame:
         def __init__(self, rows):
             self.data = [dict(row) for row in rows]
+        @property
+        def columns(self):
+            if self.data:
+                return list(self.data[0].keys())
+            return []
+        def __getitem__(self, key):
+            if isinstance(key, str):
+                return _InlineSeries([row.get(key) for row in self.data])
+            raise TypeError("Unsupported key type")
+        def __setitem__(self, key, value):
+            values = value.data if isinstance(value, _InlineSeries) else value
+            for row, val in zip(self.data, values):
+                row[key] = val
         def iterrows(self):
             for idx, row in enumerate(self.data):
                 yield idx, row
