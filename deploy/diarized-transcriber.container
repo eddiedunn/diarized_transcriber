@@ -4,7 +4,7 @@ After=redis.service
 
 [Container]
 Image=registry.starbluesolutions.net/diarized-transcriber:latest
-PullPolicy=newer
+Pull=newer
 ContainerName=diarized-transcriber
 PublishPort=127.0.0.1:8721:8000
 Network=gpu-services
