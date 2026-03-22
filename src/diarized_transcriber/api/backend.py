@@ -43,6 +43,8 @@ class DiarizedTranscriberBackend:
         language: Optional[str] = None,
         min_speakers: Optional[int] = None,
         max_speakers: Optional[int] = None,
+        identify_speakers: Optional[bool] = None,
+        auto_enroll_speakers: Optional[bool] = None,
     ) -> TranscriptionResult:
         """Transcribe an audio file, acquiring the GPU lock first."""
         async with self._lock.acquire(timeout=1800, blocking_timeout=600):
@@ -55,6 +57,8 @@ class DiarizedTranscriberBackend:
                     language=language,
                     min_speakers=min_speakers,
                     max_speakers=max_speakers,
+                    identify_speakers_override=identify_speakers,
+                    auto_enroll_override=auto_enroll_speakers,
                 ),
             )
         return result

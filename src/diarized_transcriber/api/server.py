@@ -95,6 +95,8 @@ async def v1_transcribe(
     max_speakers: Optional[int] = Form(None),
     cleanup: bool = Form(False),
     include_embeddings: bool = Form(False),
+    identify_speakers: Optional[bool] = Form(None),
+    auto_enroll_speakers: Optional[bool] = Form(None),
 ) -> dict:
     """Transcribe an uploaded audio file (multipart form).
 
@@ -124,6 +126,8 @@ async def v1_transcribe(
             language=language,
             min_speakers=min_speakers,
             max_speakers=max_speakers,
+            identify_speakers=identify_speakers,
+            auto_enroll_speakers=auto_enroll_speakers,
         )
 
         # Build flat response shape expected by curator
@@ -147,6 +151,7 @@ async def v1_transcribe(
                 entry = {
                     "id": spk.id,
                     "name": spk.metadata.get("original_speaker_id"),
+                    "profile_id": spk.metadata.get("profile_id"),
                     "segment_count": segment_count,
                 }
                 if include_embeddings and spk.embedding is not None:

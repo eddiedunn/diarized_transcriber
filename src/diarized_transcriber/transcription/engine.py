@@ -121,6 +121,8 @@ class TranscriptionEngine:
         language: Optional[str] = None,
         min_speakers: Optional[int] = None,
         max_speakers: Optional[int] = None,
+        identify_speakers_override: Optional[bool] = None,
+        auto_enroll_override: Optional[bool] = None,
     ) -> TranscriptionResult:
         """
         Run the core transcription + diarization pipeline on loaded audio.
@@ -205,21 +207,24 @@ class TranscriptionEngine:
             os.unlink(temp_path)
 
         # Identify speakers against stored profiles
+        effective_identify = self.identify_speakers if identify_speakers_override is None else identify_speakers_override
+        effective_enroll = self.auto_enroll_speakers if auto_enroll_override is None else auto_enroll_override
         speaker_id_map: dict[str, str] = {}
-        if self.identify_speakers and self.speaker_db_path:
+        if effective_identify and self.speaker_db_path:
             logger.info("Identifying speakers against stored profiles")
             if self._speaker_identifier is None:
                 store = SpeakerProfileStore(self.speaker_db_path)
                 self._speaker_identifier = SpeakerIdentifier(
                     store=store,
                     match_threshold=self.match_threshold,
-                    auto_enroll=self.auto_enroll_speakers,
+                    auto_enroll=effective_enroll,
                 )
             id_results = self._speaker_identifier.identify_speakers(speakers)
             for speaker, profile in id_results:
                 if profile is not None and profile.name:
                     original_id = speaker.id
                     speaker.metadata["original_speaker_id"] = original_id
+                    speaker.metadata["profile_id"] = profile.id
                     speaker.id = profile.name
                     speaker_id_map[original_id] = profile.name
 
@@ -306,6 +311,8 @@ class TranscriptionEngine:
         language: Optional[str] = None,
         min_speakers: Optional[int] = None,
         max_speakers: Optional[int] = None,
+        identify_speakers_override: Optional[bool] = None,
+        auto_enroll_override: Optional[bool] = None,
     ) -> TranscriptionResult:
         """
         Transcribe an audio file with speaker diarization.
@@ -336,6 +343,8 @@ class TranscriptionEngine:
                 language=language,
                 min_speakers=min_speakers,
                 max_speakers=max_speakers,
+                identify_speakers_override=identify_speakers_override,
+                auto_enroll_override=auto_enroll_override,
             )
 
             cleanup_gpu_memory()
