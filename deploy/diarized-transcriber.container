@@ -3,7 +3,8 @@ Description=Diarized Transcriber Service
 After=redis.service
 
 [Container]
-Image=localhost/diarized-transcriber:latest
+Image=registry.starbluesolutions.net/diarized-transcriber:latest
+PullPolicy=newer
 ContainerName=diarized-transcriber
 PublishPort=127.0.0.1:8721:8000
 Network=gpu-services
