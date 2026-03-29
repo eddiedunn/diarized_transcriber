@@ -223,7 +223,8 @@ def test_backend_transcribe_acquires_lock_and_runs():
 
     engine_mod.TranscriptionEngine.__init__ = patched_init
     engine_mod.TranscriptionEngine.transcribe_file = (
-        lambda self, path, language=None, min_speakers=None, max_speakers=None: dummy_result
+        lambda self, path, language=None, min_speakers=None, max_speakers=None,
+        identify_speakers_override=None, auto_enroll_override=None: dummy_result
     )
 
     backend_mod = importlib.import_module("diarized_transcriber.api.backend")
@@ -263,7 +264,15 @@ def test_backend_transcribe_error_propagation():
 
     engine_mod.TranscriptionEngine.__init__ = patched_init
 
-    def exploding_transcribe(self, path, language=None, min_speakers=None, max_speakers=None):
+    def exploding_transcribe(
+        self,
+        path,
+        language=None,
+        min_speakers=None,
+        max_speakers=None,
+        identify_speakers_override=None,
+        auto_enroll_override=None,
+    ):
         raise RuntimeError("GPU out of memory")
 
     engine_mod.TranscriptionEngine.transcribe_file = exploding_transcribe
