@@ -1,0 +1,2 @@
+# nltk XMLRPC DoS — no fix available, not exploitable (we don't expose nltk's server)
+CVE-2026-33231
