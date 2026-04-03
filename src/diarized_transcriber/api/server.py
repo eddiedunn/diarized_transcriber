@@ -49,6 +49,13 @@ try:
 except (ImportError, AttributeError):
     pass
 
+# Include fingerprint routes if available
+try:
+    from .fingerprint_routes import router as fingerprint_router
+    app.include_router(fingerprint_router)
+except (ImportError, AttributeError):
+    pass
+
 
 @app.get("/")
 def read_root() -> dict[str, str]:
