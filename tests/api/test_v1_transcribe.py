@@ -124,9 +124,10 @@ def _setup_stubs():
     fastapi = types.ModuleType("fastapi")
 
     class HTTPException(Exception):
-        def __init__(self, status_code=500, detail=None):
+        def __init__(self, status_code=500, detail=None, headers=None):
             self.status_code = status_code
             self.detail = detail
+            self.headers = headers
 
     class UploadFile:
         def __init__(self, filename=None, content=b""):
@@ -382,6 +383,36 @@ def test_health_endpoint():
     assert result["status"] == "ok"
     assert result["model_loaded"] is False
     assert result["gpu_available"] is False
+
+    _clear_modules()
+
+
+def test_v1_transcribe_gpu_lock_timeout_returns_503():
+    """When GPU lock times out, v1/transcribe returns 503 with Retry-After header."""
+    import pytest
+
+    fastapi_mod = _setup_stubs()
+    _clear_modules()
+    _setup_package()
+
+    server_mod = _import_server_with_mock_backend(fastapi_mod)
+
+    mock_backend = MagicMock()
+    mock_backend.transcribe = AsyncMock(side_effect=TimeoutError("GPU lock timed out"))
+    server_mod._backend = mock_backend
+
+    upload = fastapi_mod.UploadFile(filename="test.wav", content=b"fake-audio")
+
+    async def run():
+        return await server_mod.v1_transcribe(
+            audio=upload, language=None, cleanup=False
+        )
+
+    with pytest.raises(fastapi_mod.HTTPException) as exc_info:
+        asyncio.run(run())
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.headers == {"Retry-After": "60"}
 
     _clear_modules()
 

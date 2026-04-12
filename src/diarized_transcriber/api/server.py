@@ -178,6 +178,13 @@ async def v1_transcribe(
             "model": result.metadata.get("model_size", "unknown"),
             "speakers": speakers,
         }
+    except TimeoutError as exc:
+        logger.warning("GPU lock timeout — service busy")
+        raise HTTPException(
+            status_code=503,
+            detail="Transcription service busy, please retry later",
+            headers={"Retry-After": "60"},
+        ) from exc
     except HTTPException:
         raise
     except Exception as exc:
