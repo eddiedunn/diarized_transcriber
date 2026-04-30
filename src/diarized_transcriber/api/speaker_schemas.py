@@ -11,6 +11,7 @@ class EnrollSpeakerRequest(BaseModel):
         description="Speaker embedding vector (256-dim)"
     )
     name: Optional[str] = Field(default=None, max_length=200)
+    total_duration: Optional[float] = Field(default=None, ge=0.0)
 
     @field_validator("embedding")
     @classmethod

@@ -74,6 +74,7 @@ def enroll_speaker(req: EnrollSpeakerRequest) -> SpeakerProfileResponse:
     profile = SpeakerProfile(
         name=req.name,
         embedding=req.embedding,
+        total_duration=req.total_duration,
     )
     try:
         created = store.add_profile(profile)

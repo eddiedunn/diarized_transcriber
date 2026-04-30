@@ -72,6 +72,13 @@ class SpeakerIdentifier:
                         profile.id,
                         best.distance,
                     )
+                    if self.auto_enroll:
+                        try:
+                            profile = self.update_profile_with_speaker(profile.id, speaker)
+                        except ValueError as exc:
+                            logger.warning(
+                                "Failed to refine profile %s: %s", profile.id, exc
+                            )
                     results.append((speaker, profile))
                     continue
 
@@ -163,10 +170,13 @@ class SpeakerIdentifier:
         profile.embedding = merged
         profile.enrollment_count = total_weight
 
+        speaker_duration = sum(
+            seg.end - seg.start for seg in speaker.segments
+        )
         if profile.total_duration is not None:
-            speaker_duration = sum(
-                seg.end - seg.start for seg in speaker.segments
-            )
             profile.total_duration += speaker_duration
+        elif speaker_duration > 0:
+            # Heal legacy profiles that were enrolled without a duration.
+            profile.total_duration = speaker_duration
 
         return self.store.update_profile(profile)
