@@ -1,7 +1,25 @@
+import asyncio
+import inspect
 import sys
 import types
 import importlib
 from pathlib import Path
+
+
+class _FakeBackend:
+    """Stands in for the GPU-worker backend: runs a dummy engine in-process."""
+
+    def __init__(self, engine_cls):
+        self._engine_cls = engine_cls
+
+    async def transcribe_content(self, content, model_size, min_speakers=None, max_speakers=None):
+        engine = self._engine_cls(model_size=model_size)
+        return engine.transcribe(content, min_speakers=min_speakers, max_speakers=max_speakers)
+
+
+def _call(func, *args):
+    result = func(*args)
+    return asyncio.run(result) if inspect.iscoroutine(result) else result
 
 
 def test_transcribe_endpoint():
@@ -138,7 +156,7 @@ def test_transcribe_endpoint():
             func = self.app.routes[("POST", path)]
             schemas = importlib.import_module("diarized_transcriber.api.schemas")
             req = schemas.TranscriptionRequest(**(json or {}))
-            result = func(req)
+            result = _call(func, req)
             return Response(result.__dict__)
     testclient.TestClient = TestClient
     fastapi.testclient = testclient
@@ -166,7 +184,7 @@ def test_transcribe_endpoint():
 
     server = importlib.import_module("diarized_transcriber.api.server")
     schemas = importlib.import_module("diarized_transcriber.api.schemas")
-    server.TranscriptionEngine = DummyEngine
+    server._backend = _FakeBackend(DummyEngine)
 
     client = testclient.TestClient(server.app)
     resp = client.post(
@@ -504,7 +522,7 @@ def test_transcribe_default_model_is_large_v3_turbo():
             func = self.app.routes[("POST", path)]
             schemas = importlib.import_module("diarized_transcriber.api.schemas")
             req = schemas.TranscriptionRequest(**(json or {}))
-            result = func(req)
+            result = _call(func, req)
             return Response(result.__dict__)
     testclient.TestClient = TestClient
     fastapi.testclient = testclient
@@ -538,7 +556,7 @@ def test_transcribe_default_model_is_large_v3_turbo():
             )
 
     server = importlib.import_module("diarized_transcriber.api.server")
-    server.TranscriptionEngine = DummyEngine
+    server._backend = _FakeBackend(DummyEngine)
 
     client = testclient.TestClient(server.app)
     resp = client.post(

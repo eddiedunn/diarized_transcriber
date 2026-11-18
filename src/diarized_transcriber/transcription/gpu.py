@@ -57,5 +57,8 @@ def cleanup_gpu_memory() -> None:
     Clean up GPU memory by clearing cache and garbage collecting.
     """
     import gc
-    torch.cuda.empty_cache()
+
+    # gc first, then empty_cache: tensors freed by the collector must be back in
+    # the caching allocator before it is emptied, or they stay reserved.
     gc.collect()
+    torch.cuda.empty_cache()

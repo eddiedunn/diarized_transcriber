@@ -9,34 +9,52 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, UploadFile, Form
 
 from ..models.content import MediaContent, MediaSource
-from ..transcription.engine import TranscriptionEngine
 
 from .schemas import TranscriptionRequest, TranscriptionResponse
 
 logger = logging.getLogger(__name__)
 
-# Try to import the GPU-backed backend; it is optional so tests and
-# lightweight installations can still import this module.
-_backend = None
-try:
-    from .backend import DiarizedTranscriberBackend
 
-    _backend = DiarizedTranscriberBackend()
-except Exception:
-    pass
+def _configure_logging() -> None:
+    """Send our (and gpu_common's) log records to stderr, i.e. the container log.
+
+    Without this the root logger has no handler: INFO is dropped and the
+    tracebacks from logger.exception() never reach the journal.
+    """
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        force=True,
+    )
+
+# Try to import the GPU-backed backend; it is optional so tests and
+# lightweight installations can still import this module. The backend runs all GPU
+# work in a worker process; this process must never touch CUDA.
+_backend = None
+_backend_error: Optional[str] = None
+try:
+    from .backend import GPUOutOfMemory, get_backend
+
+    _backend = get_backend()
+except Exception as exc:  # reported at startup, once logging is configured
+    _backend_error = repr(exc)
+
+    class GPUOutOfMemory(RuntimeError):  # type: ignore[no-redef]
+        pass
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Manage backend startup and shutdown."""
+    _configure_logging()
+    if _backend is None:
+        logger.error("GPU backend unavailable: %s", _backend_error)
     if _backend is not None:
-        await _backend._manager.start()
-        await _backend._lock.connect()
+        await _backend.start()
         logger.info("Backend started")
     yield
     if _backend is not None:
-        await _backend._manager.stop()
-        await _backend._lock.disconnect()
+        await _backend.stop()
         logger.info("Backend stopped")
 
 
@@ -65,14 +83,12 @@ def read_root() -> dict[str, str]:
 
 
 @app.post("/transcribe", response_model=TranscriptionResponse)
-def transcribe(req: TranscriptionRequest) -> TranscriptionResponse:
-    """Transcribe the provided media file."""
+async def transcribe(req: TranscriptionRequest) -> TranscriptionResponse:
+    """Transcribe the provided media file (legacy; runs in the GPU worker too)."""
 
+    if _backend is None:
+        raise HTTPException(status_code=503, detail="Backend not available")
     try:
-        engine = TranscriptionEngine(
-            model_size=req.model_size or "large-v3-turbo"
-        )
-
         content = MediaContent(
             id=req.id,
             title=req.title,
@@ -80,8 +96,9 @@ def transcribe(req: TranscriptionRequest) -> TranscriptionResponse:
             source=MediaSource(type="local"),
         )
 
-        result = engine.transcribe(
+        result = await _backend.transcribe_content(
             content,
+            req.model_size or "large-v3-turbo",
             min_speakers=req.min_speakers,
             max_speakers=req.max_speakers,
         )
@@ -185,6 +202,13 @@ async def v1_transcribe(
             detail="Transcription service busy, please retry later",
             headers={"Retry-After": "60"},
         ) from exc
+    except GPUOutOfMemory as exc:
+        logger.error("v1/transcribe: GPU out of memory after retry: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="GPU out of memory, please retry later",
+            headers={"Retry-After": "120"},
+        ) from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -197,11 +221,11 @@ async def v1_transcribe(
 
 @app.get("/health")
 async def health() -> dict:
-    """Service health check."""
+    """Service health check. Must not touch CUDA (see backend)."""
     model_loaded = False
     gpu_available = False
     if _backend is not None:
-        model_loaded = _backend._manager._model is not None
+        model_loaded = _backend.worker.is_loaded
         try:
             from gpu_common import check_gpu_available
 

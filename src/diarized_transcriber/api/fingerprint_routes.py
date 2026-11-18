@@ -10,26 +10,20 @@ import os
 import tempfile
 from typing import Optional
 
+from pathlib import Path
+
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from ..config import get_settings
 from ..models.transcription import Speaker, TimeSegment
 from ..storage.speaker_store import SpeakerProfileStore
-from ..transcription.embeddings import SpeakerEmbeddingExtractor
+from .backend import get_backend
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["fingerprint"])
 
-_extractor: Optional[SpeakerEmbeddingExtractor] = None
 _store: Optional[SpeakerProfileStore] = None
-
-
-def _get_extractor() -> SpeakerEmbeddingExtractor:
-    global _extractor
-    if _extractor is None:
-        _extractor = SpeakerEmbeddingExtractor(device="cuda")
-    return _extractor
 
 
 def _get_store() -> SpeakerProfileStore:
@@ -154,19 +148,18 @@ async def fingerprint(
             contents = await audio.read()
             tmp.write(contents)
 
-        extractor = _get_extractor()
+        # The embedding model runs in the backend's GPU worker process.
+        extracted = await get_backend().fingerprint(Path(tmp_path), speaker_inputs)
         store = _get_store() if match_profiles else None
 
         results = []
-        for speaker in speaker_inputs:
+        for speaker, (embedding, error) in zip(speaker_inputs, extracted):
             total_duration = sum(s.end - s.start for s in speaker.segments)
 
-            try:
-                embedding = extractor.extract_for_speaker(tmp_path, speaker)
-            except Exception as e:
+            if error is not None:
                 logger.warning(
                     "Embedding extraction failed for %s (%.1fs across %d segments): %s",
-                    speaker.id, total_duration, len(speaker.segments), e,
+                    speaker.id, total_duration, len(speaker.segments), error,
                 )
                 results.append({
                     "speaker_id": speaker.id,
@@ -174,7 +167,7 @@ async def fingerprint(
                     "match": None,
                     "total_duration": total_duration,
                     "segment_count": len(speaker.segments),
-                    "error": str(e),
+                    "error": error,
                 })
                 continue
 

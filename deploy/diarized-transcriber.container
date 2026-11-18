@@ -23,9 +23,11 @@ Environment=SPEAKER_DB_PATH=/data/speaker_profiles_db
 Environment=DIARIZED_IDENTIFY_SPEAKERS=true
 Environment=DIARIZED_AUTO_ENROLL_SPEAKERS=true
 Environment=DIARIZED_MATCH_THRESHOLD=0.4
+Environment=DIARIZED_EXTRACT_EMBEDDINGS=true
 Secret=hf_token,type=env,target=HF_TOKEN
 
 [Service]
+ExecStartPre=mkdir -p /tmp/diarized-transcriber
 Restart=always
 TimeoutStartSec=180
 TimeoutStopSec=60

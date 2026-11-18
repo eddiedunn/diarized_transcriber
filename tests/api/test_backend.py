@@ -146,27 +146,56 @@ def _setup_stubs():
         async def __aexit__(self, *exc):
             self._acquired = False
 
-    class GPUModelManager:
-        def __init__(self, load_fn, idle_timeout=None, cleanup_interval=None):
-            self._load_fn = load_fn
-            self._model = None
+    def is_gpu_oom(exc):
+        while exc is not None:
+            if "out of memory" in str(exc).lower():
+                return True
+            exc = exc.__cause__ or exc.__context__
+        return False
+
+    class WorkerError(RuntimeError):
+        pass
+
+    class GPUOutOfMemoryError(WorkerError):
+        pass
+
+    class GPUWorker:
+        """In-process stand-in: resolves the handler and calls it directly. Like the
+        real worker, an OOM discards the handler so the next call starts fresh."""
+
+        def __init__(self, factory, idle_timeout=None, cleanup_interval=None, name="w"):
+            self._factory = factory
+            self._handler = None
+            self.starts = 0
+
+        @property
+        def is_loaded(self):
+            return self._handler is not None
 
         async def start(self):
             pass
 
         async def stop(self):
-            pass
+            self._handler = None
 
-        async def get(self):
-            if self._model is None:
-                loop = asyncio.get_running_loop()
-                self._model = await loop.run_in_executor(
-                    None, self._load_fn
-                )
-            return self._model
+        async def call(self, method, *args, **kwargs):
+            if self._handler is None:
+                module_name, _, attr = self._factory.partition(":")
+                self._handler = getattr(importlib.import_module(module_name), attr)()
+                self.starts += 1
+            try:
+                return getattr(self._handler, method)(*args, **kwargs)
+            except Exception as exc:
+                if is_gpu_oom(exc):
+                    self._handler = None
+                    raise GPUOutOfMemoryError(str(exc)) from None
+                raise WorkerError(f"{type(exc).__name__}: {exc}") from None
 
     gpu_common.GPULock = GPULock
-    gpu_common.GPUModelManager = GPUModelManager
+    gpu_common.GPUWorker = GPUWorker
+    gpu_common.WorkerError = WorkerError
+    gpu_common.GPUOutOfMemoryError = GPUOutOfMemoryError
+    gpu_common.is_gpu_oom = is_gpu_oom
     sys.modules["gpu_common"] = gpu_common
 
 
@@ -273,7 +302,7 @@ def test_backend_transcribe_error_propagation():
         identify_speakers_override=None,
         auto_enroll_override=None,
     ):
-        raise RuntimeError("GPU out of memory")
+        raise RuntimeError("decoder exploded")
 
     engine_mod.TranscriptionEngine.transcribe_file = exploding_transcribe
 
@@ -283,7 +312,67 @@ def test_backend_transcribe_error_propagation():
     async def run():
         await backend.transcribe(Path("/tmp/test.wav"))
 
-    with pytest.raises(RuntimeError, match="GPU out of memory"):
+    with pytest.raises(RuntimeError, match="decoder exploded"):
         asyncio.run(run())
+    assert backend.worker.starts == 1  # non-OOM errors are not retried
 
+    _clear_modules()
+
+
+def _oom_backend(failures_before_success):
+    """Backend whose engine raises CUDA OOM (wrapped, like TranscriptionError) N times."""
+    _setup_stubs()
+    _clear_modules()
+    _setup_package()
+    importlib.import_module("diarized_transcriber.config").get_settings.cache_clear()
+    engine_mod = importlib.import_module("diarized_transcriber.transcription.engine")
+    engine_mod.verify_gpu_requirements = lambda: "cpu"
+
+    def patched_init(self, *args, **kwargs):
+        self.device = "cpu"
+
+    calls = {"n": 0}
+
+    def transcribe(self, path, **kwargs):
+        calls["n"] += 1
+        if calls["n"] <= failures_before_success:
+            try:
+                raise RuntimeError("CUDA out of memory. Tried to allocate 2.00 GiB")
+            except RuntimeError as inner:
+                raise ValueError("Transcription failed") from inner
+        return "result"
+
+    engine_mod.TranscriptionEngine.__init__ = patched_init
+    engine_mod.TranscriptionEngine.transcribe_file = transcribe
+    backend_mod = importlib.import_module("diarized_transcriber.api.backend")
+    return backend_mod, backend_mod.DiarizedTranscriberBackend(), calls
+
+
+def test_backend_retries_once_after_gpu_oom():
+    _, backend, calls = _oom_backend(failures_before_success=1)
+    result = asyncio.run(backend.transcribe(Path("/tmp/test.wav")))
+    assert result == "result"
+    assert calls["n"] == 2
+    assert backend.worker.starts == 2  # the retry ran in a fresh worker
+    _clear_modules()
+
+
+def test_backend_raises_gpu_out_of_memory_when_retry_also_fails():
+    import pytest
+
+    backend_mod, backend, calls = _oom_backend(failures_before_success=2)
+    with pytest.raises(backend_mod.GPUOutOfMemory):
+        asyncio.run(backend.transcribe(Path("/tmp/test.wav")))
+    assert calls["n"] == 2
+    _clear_modules()
+
+
+def test_backend_runs_engine_in_worker_handler_not_in_web_process():
+    """The backend never builds the engine itself: only the worker's handler does."""
+    _, backend, calls = _oom_backend(failures_before_success=0)
+    assert not backend.worker.is_loaded
+    asyncio.run(backend.transcribe(Path("/tmp/test.wav")))
+    assert backend.worker.is_loaded and backend.worker.starts == 1
+    handler_mod = sys.modules["diarized_transcriber.api.gpu_handler"]
+    assert isinstance(backend.worker._handler, handler_mod.TranscriberHandler)
     _clear_modules()

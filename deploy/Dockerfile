@@ -14,15 +14,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv for fast Python package management
 RUN pip install uv
 
+# Pin every third-party package to the set the running service was built with
+# (deploy/constraints.txt is `pip freeze` from that image). Without it a rebuild
+# pulls whatever torch/whisperx/pyannote are newest that day.
+COPY deploy/constraints.txt /tmp/constraints.txt
+
 # Install gpu-common wheel
-COPY deploy/gpu_common-0.1.0-py3-none-any.whl /tmp/
-RUN uv pip install --system --python python3.11 /tmp/gpu_common-0.1.0-py3-none-any.whl \
-    && rm /tmp/gpu_common-0.1.0-py3-none-any.whl
+COPY deploy/gpu_common-0.3.0-py3-none-any.whl /tmp/
+RUN uv pip install --system --python python3.11 -c /tmp/constraints.txt \
+        "/tmp/gpu_common-0.3.0-py3-none-any.whl[torch]" \
+    && rm /tmp/gpu_common-0.3.0-py3-none-any.whl
 
 # Install diarized_transcriber
 WORKDIR /app
 COPY . /src/diarized_transcriber
-RUN uv pip install --system --python python3.11 "/src/diarized_transcriber[server,profiles]"
+RUN uv pip install --system --python python3.11 -c /tmp/constraints.txt \
+        "/src/diarized_transcriber[server,profiles]"
 
 # Environment defaults
 ENV DIARIZED_HOST=0.0.0.0

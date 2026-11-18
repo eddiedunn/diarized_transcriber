@@ -417,6 +417,33 @@ def test_v1_transcribe_gpu_lock_timeout_returns_503():
     _clear_modules()
 
 
+def test_v1_transcribe_gpu_out_of_memory_returns_503():
+    """GPU out of memory after the backend's retry is 503 (retry later), not 500."""
+    import pytest
+
+    fastapi_mod = _setup_stubs()
+    _clear_modules()
+    _setup_package()
+
+    server_mod = _import_server_with_mock_backend(fastapi_mod)
+
+    mock_backend = MagicMock()
+    mock_backend.transcribe = AsyncMock(
+        side_effect=server_mod.GPUOutOfMemory("CUDA out of memory")
+    )
+    server_mod._backend = mock_backend
+
+    upload = fastapi_mod.UploadFile(filename="test.wav", content=b"fake-audio")
+
+    with pytest.raises(fastapi_mod.HTTPException) as exc_info:
+        asyncio.run(server_mod.v1_transcribe(audio=upload, language=None, cleanup=False))
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.headers == {"Retry-After": "120"}
+
+    _clear_modules()
+
+
 def test_models_endpoint():
     """GET /models returns list of available model sizes."""
     fastapi_mod = _setup_stubs()
