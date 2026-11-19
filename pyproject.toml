@@ -53,7 +53,7 @@ dependencies = [
     "soundfile>=0.12.0",
     "python-multipart>=0.0.6",
 ]
-requires-python = ">=3.10.0"
+requires-python = ">=3.11"
 
 [project.urls]
 Homepage = "https://github.com/eddiedunn/diarized_transcriber"
@@ -83,6 +83,10 @@ profiles = [
     "lancedb>=0.15.0",
     "scipy>=1.11.0",
 ]
+
+[tool.uv.sources]
+# gpu_common is not on PyPI; the image installs this same wheel (deploy/Dockerfile)
+gpu-common = { path = "deploy/gpu_common-0.3.0-py3-none-any.whl" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/diarized_transcriber"]
